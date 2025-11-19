@@ -263,6 +263,13 @@ const App: React.FC = () => {
 
       {/* Toast Container */}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
+      
+      {/* Watermark */}
+      <div className="fixed bottom-3 w-full text-center z-30 pointer-events-none select-none">
+          <span className="inline-block text-[10px] md:text-xs font-medium text-gray-400 dark:text-gray-500 opacity-60 bg-white/50 dark:bg-black/50 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10 shadow-sm">
+            ©️ TomBocXiMang - 2025
+          </span>
+      </div>
     </div>
   );
 };
