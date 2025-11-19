@@ -1,0 +1,7 @@
+{
+  "name": "CulinaryGenius AI",
+  "description": "An intelligent recipe discovery app powered by Gemini 2.0 Flash. Identify ingredients from photos and generate personalized, multi-language recipes with detailed instructions.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
