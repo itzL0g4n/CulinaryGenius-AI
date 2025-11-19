@@ -14,8 +14,9 @@ const RecipeCard: React.FC<Props> = ({ recipe, onClick, language, index }) => {
   const style = { animationDelay: `${index * 100}ms` };
   const t = TRANSLATIONS[language];
 
-  // Fallback image if generation fails or is loading
-  const displayImage = recipe.imageUrl || `https://picsum.photos/seed/${recipe.id}/400/300`;
+  // Fallback image if generation completely fails (though service now handles fallback)
+  const fallbackImage = `https://image.pollinations.ai/prompt/food%20dish%20${encodeURIComponent(recipe.name)}?width=400&height=300&nologo=true`;
+  const displayImage = recipe.imageUrl || fallbackImage;
 
   return (
     <div 
@@ -29,6 +30,10 @@ const RecipeCard: React.FC<Props> = ({ recipe, onClick, language, index }) => {
           alt={recipe.name}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
           loading="lazy"
+          onError={(e) => {
+            // Final safety net
+            e.currentTarget.src = "https://placehold.co/400x300?text=Delicious+Food";
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
         

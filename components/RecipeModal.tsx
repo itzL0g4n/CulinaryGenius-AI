@@ -11,8 +11,9 @@ interface Props {
 const RecipeModal: React.FC<Props> = ({ recipe, onClose, language }) => {
   const t = TRANSLATIONS[language];
 
-  // Use generated image or fallback
-  const imageUrl = recipe.imageUrl || `https://picsum.photos/seed/${recipe.id}/800/400`;
+  // Use generated image or smart fallback
+  const fallbackImage = `https://image.pollinations.ai/prompt/food%20dish%20${encodeURIComponent(recipe.name)}?width=800&height=400&nologo=true`;
+  const imageUrl = recipe.imageUrl || fallbackImage;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -28,6 +29,9 @@ const RecipeModal: React.FC<Props> = ({ recipe, onClose, language }) => {
                 src={imageUrl} 
                 alt={recipe.name} 
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                    e.currentTarget.src = "https://placehold.co/800x400?text=Delicious+Food";
+                }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
             <button 
