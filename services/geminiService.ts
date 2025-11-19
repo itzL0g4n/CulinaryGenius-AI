@@ -1,10 +1,31 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { Recipe } from "../types";
 
 const getClient = () => {
   // Use the environment variable provided by the runtime
+  // Ensure API_KEY is present in your deployment environment variables
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
+
+// Common safety settings to prevent blocking valid food content
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  },
+];
 
 // Function to analyze image and extract ingredients
 export const identifyIngredientsFromImage = async (
@@ -41,12 +62,17 @@ export const identifyIngredientsFromImage = async (
           items: {
             type: Type.STRING
           }
-        }
+        },
+        safetySettings: safetySettings,
       }
     });
 
-    const jsonString = response.text;
+    let jsonString = response.text;
     if (!jsonString) return [];
+
+    // Sanitize potential markdown code blocks
+    jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+
     return JSON.parse(jsonString) as string[];
 
   } catch (error) {
@@ -123,12 +149,17 @@ export const generateRecipesFromIngredients = async (
             },
             required: ["id", "name", "description", "ingredients", "instructions", "cookingTime", "difficulty", "cuisineType"]
           }
-        }
+        },
+        safetySettings: safetySettings,
       }
     });
 
-    const text = response.text;
+    let text = response.text;
     if (!text) return [];
+    
+    // Sanitize
+    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
     return JSON.parse(text) as Recipe[];
 
   } catch (error) {
@@ -154,6 +185,8 @@ export const generateRecipeImage = async (
         numberOfImages: 1,
         outputMimeType: 'image/jpeg',
         aspectRatio: '4:3',
+        // @ts-ignore - Safety settings might vary for image models, but passing generalized config if supported or relying on defaults.
+        // Note: Imagen often has stricter built-in filters that can't always be overridden, hence the fallback below is crucial.
       },
     });
 

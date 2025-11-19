@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Recipe, Language } from '../types';
 import { DIFFICULTY_COLORS, TRANSLATIONS } from '../constants';
 
@@ -10,6 +10,8 @@ interface Props {
 }
 
 const RecipeCard: React.FC<Props> = ({ recipe, onClick, language, index }) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  
   // Add a small delay to stagger animations
   const style = { animationDelay: `${index * 100}ms` };
   const t = TRANSLATIONS[language];
@@ -24,15 +26,22 @@ const RecipeCard: React.FC<Props> = ({ recipe, onClick, language, index }) => {
       onClick={onClick}
       className="glass-card group relative rounded-2xl overflow-hidden bg-white/60 dark:bg-gray-800/60 border border-white/20 cursor-pointer animate-slide-up"
     >
-      <div className="h-48 overflow-hidden relative">
+      <div className="h-48 overflow-hidden relative bg-gray-200 dark:bg-gray-700">
+        {/* Loading Skeleton */}
+        {!imageLoaded && (
+           <div className="absolute inset-0 animate-pulse bg-gray-300 dark:bg-gray-600"></div>
+        )}
+        
         <img 
           src={displayImage} 
           alt={recipe.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          className={`w-full h-full object-cover transition-all duration-700 ease-in-out group-hover:scale-110 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
           loading="lazy"
+          onLoad={() => setImageLoaded(true)}
           onError={(e) => {
             // Final safety net
             e.currentTarget.src = "https://placehold.co/400x300?text=Delicious+Food";
+            setImageLoaded(true);
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>

@@ -131,12 +131,11 @@ const App: React.FC = () => {
         return;
       }
 
-      // Display text recipes immediately while images load
-      setRecipes(generatedRecipes);
+      // IMPORTANT: Do not set recipes yet. Wait for images to be ready.
       
       // Update loading for image phase
       setLoadingMessage(t.generatingImages);
-      setLoadingProgress(90); // Jump to near end but hold
+      setLoadingProgress(85); // Update progress to reflect image generation phase
       
       // Step 2: Generate Images in Parallel
       const recipesWithImages = await Promise.all(
@@ -150,10 +149,12 @@ const App: React.FC = () => {
         })
       );
 
+      // Step 3: Display everything at once
       setRecipes(recipesWithImages);
       notify('Recipes generated successfully!', 'success');
       
     } catch (error) {
+      console.error(error);
       notify('Error generating recipes. Please try again.', 'error');
     } finally {
       stopLoadingSequence();

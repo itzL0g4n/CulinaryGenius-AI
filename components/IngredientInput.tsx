@@ -31,28 +31,73 @@ const IngredientInput: React.FC<Props> = ({
     }
   };
 
+  // Helper to compress/resize image before sending to API
+  const compressImage = (file: File): Promise<{ base64: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Resize to max 1024px to reduce payload size significantly
+          // This fixes timeouts and payload limits on Vercel
+          const MAX_SIZE = 1024;
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+             reject(new Error("Could not get canvas context"));
+             return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Compress to JPEG with 0.7 quality
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          // Remove the "data:image/jpeg;base64," prefix
+          const base64 = dataUrl.split(',')[1];
+          resolve({ base64, mimeType: 'image/jpeg' });
+        };
+        img.onerror = (error) => reject(error);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (max 4MB)
-    if (file.size > 4 * 1024 * 1024) {
-        notify('Image too large (max 4MB)', 'error');
+    // Basic initial size check (allow up to 10MB source, we compress anyway)
+    if (file.size > 10 * 1024 * 1024) {
+        notify('Image too large (max 10MB)', 'error');
         return;
     }
 
     setLoading(true);
     notify(t.analyzing, 'info');
 
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        const base64String = reader.result as string;
-        // Extract base64 data part (remove "data:image/jpeg;base64,")
-        const base64Data = base64String.split(',')[1];
-        const mimeType = file.type;
+    try {
+        // Compress image before sending
+        const { base64, mimeType } = await compressImage(file);
 
-        const detectedIngredients = await identifyIngredientsFromImage(base64Data, mimeType, language);
+        const detectedIngredients = await identifyIngredientsFromImage(base64, mimeType, language);
         
         if (detectedIngredients.length > 0) {
             detectedIngredients.forEach(name => addIngredient(name));
@@ -60,14 +105,13 @@ const IngredientInput: React.FC<Props> = ({
         } else {
             notify('No ingredients detected.', 'info');
         }
-      } catch (error) {
-        notify('Failed to analyze image', 'error');
-      } finally {
+    } catch (error) {
+        console.error("Analysis failed:", error);
+        notify('Failed to analyze image. Please try again.', 'error');
+    } finally {
         setLoading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   return (
