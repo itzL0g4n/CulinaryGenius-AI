@@ -32,13 +32,28 @@ export const TRANSLATIONS = {
     remove: 'Remove',
     clearAll: 'Clear All',
     imageUploadTip: 'Upload or take a photo of your fridge/pantry',
-    loadingMessages: [
-      'Consulting Michelin chefs...',
-      'Mixing spices...',
-      'Preheating the oven...',
-      'Tasting sauces...',
-      'Plating the dishes...'
-    ]
+    // Detailed loading phases
+    loadingPhases: {
+      analyzing: [
+        'Scanning pixels for deliciousness...',
+        'Identifying hidden flavors...',
+        'Consulting the visual pantry...',
+        'Decoding food matrix...'
+      ],
+      recipes: [
+        'Brainstorming menu ideas...',
+        'Consulting Michelin chefs...',
+        'Balancing flavors...',
+        'Checking cooking times...',
+        'Writing detailed instructions...'
+      ],
+      images: [
+        'Plating the dishes...',
+        'Adjusting studio lighting...',
+        'Garnishing with AI herbs...',
+        'Taking the perfect shot...'
+      ]
+    }
   },
   vi: {
     title: 'CulinaryGenius AI',
@@ -61,12 +76,25 @@ export const TRANSLATIONS = {
     remove: 'Xóa',
     clearAll: 'Xóa tất cả',
     imageUploadTip: 'Tải lên hoặc chụp ảnh tủ lạnh/nguyên liệu',
-    loadingMessages: [
-      'Đang hỏi ý kiến đầu bếp...',
-      'Đang nêm nếm gia vị...',
-      'Đang làm nóng lò...',
-      'Đang chuẩn bị nước sốt...',
-      'Đang bày biện món ăn...'
-    ]
+    loadingPhases: {
+      analyzing: [
+        'Đang quét hình ảnh...',
+        'Đang nhận diện nguyên liệu...',
+        'Đang tìm kiếm hương vị...',
+        'Đang giải mã món ăn...'
+      ],
+      recipes: [
+        'Đang lên ý tưởng thực đơn...',
+        'Đang hỏi ý kiến đầu bếp 5 sao...',
+        'Đang cân bằng gia vị...',
+        'Đang viết hướng dẫn chi tiết...'
+      ],
+      images: [
+        'Đang bày biện món ăn...',
+        'Đang chỉnh ánh sáng...',
+        'Đang trang trí...',
+        'Đang chụp hình món ăn...'
+      ]
+    }
   }
 };

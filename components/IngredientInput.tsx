@@ -44,9 +44,8 @@ const IngredientInput: React.FC<Props> = ({
           let width = img.width;
           let height = img.height;
           
-          // Resize to max 1024px to reduce payload size significantly
-          // This fixes timeouts and payload limits on Vercel
-          const MAX_SIZE = 1024;
+          // Resize to max 800px (safer for Vercel timeouts/payloads than 1024px)
+          const MAX_SIZE = 800;
           if (width > height) {
             if (width > MAX_SIZE) {
               height *= MAX_SIZE / width;
@@ -68,8 +67,8 @@ const IngredientInput: React.FC<Props> = ({
           }
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Compress to JPEG with 0.7 quality
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          // Compress to JPEG with 0.6 quality
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           // Remove the "data:image/jpeg;base64," prefix
           const base64 = dataUrl.split(',')[1];
           resolve({ base64, mimeType: 'image/jpeg' });
@@ -84,14 +83,14 @@ const IngredientInput: React.FC<Props> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Basic initial size check (allow up to 10MB source, we compress anyway)
-    if (file.size > 10 * 1024 * 1024) {
-        notify('Image too large (max 10MB)', 'error');
+    if (file.size > 20 * 1024 * 1024) {
+        notify('Image too large (max 20MB)', 'error');
         return;
     }
 
     setLoading(true);
-    notify(t.analyzing, 'info');
+    // Notification is handled by loading state in App.tsx now, but we can keep a toast if needed
+    // notify(t.analyzing, 'info'); 
 
     try {
         // Compress image before sending

@@ -3,7 +3,7 @@ import Header from './components/Header';
 import IngredientInput from './components/IngredientInput';
 import RecipeCard from './components/RecipeCard';
 import RecipeModal from './components/RecipeModal';
-import { ToastContainer } from './components/Toast.tsx';
+import { ToastContainer } from './components/Toast';
 import { Theme, Language, Ingredient, Recipe, ToastMessage } from './types';
 import { TRANSLATIONS } from './constants';
 import { generateRecipesFromIngredients, generateRecipeImage } from './services/geminiService';
@@ -21,7 +21,8 @@ const App: React.FC = () => {
   // Advanced Loading State
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<number | null>(null);
+  const messageIntervalRef = useRef<number | null>(null);
 
   // Translations
   const t = TRANSLATIONS[language];
@@ -70,43 +71,62 @@ const App: React.FC = () => {
     setIngredients(prev => prev.filter(ing => ing.id !== id));
   };
 
-  // Loading Logic
-  const startLoadingSequence = () => {
-    setLoading(true);
-    setLoadingProgress(0);
-    setLoadingMessage(t.generating);
+  // Helper to cycle messages
+  const cycleMessages = useCallback((phase: 'analyzing' | 'recipes' | 'images') => {
+    const messages = t.loadingPhases[phase];
+    let index = 0;
     
-    // Message cycling
-    let msgIndex = 0;
-    const messages = t.loadingMessages || ['Cooking...'];
+    setLoadingMessage(messages[0]);
     
-    // Fake progress bar
-    progressIntervalRef.current = setInterval(() => {
-      setLoadingProgress(prev => {
-        // Slow down as it gets closer to 90%
-        const increment = prev < 60 ? 5 : prev < 80 ? 2 : 0.5;
-        const next = prev + increment;
-        
-        // Cycle messages based on progress approximate
-        if (prev > 20 && prev < 25) setLoadingMessage(messages[0]);
-        if (prev > 40 && prev < 45) setLoadingMessage(messages[1]);
-        if (prev > 60 && prev < 65) setLoadingMessage(messages[2]);
-        if (prev > 80 && prev < 85) setLoadingMessage(messages[3]);
-        
-        return next >= 90 ? 90 : next;
-      });
-    }, 300);
+    if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);
+    
+    messageIntervalRef.current = window.setInterval(() => {
+      index = (index + 1) % messages.length;
+      setLoadingMessage(messages[index]);
+    }, 2000);
+  }, [t]);
+
+  // Helper to animate progress bar smoothly
+  const animateProgress = (targetStart: number, targetEnd: number, duration: number) => {
+    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+    
+    const startTime = Date.now();
+    const startValue = loadingProgress;
+    
+    progressIntervalRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easeOut = 1 - Math.pow(1 - progress, 3); // Cubic ease out
+      
+      const current = startValue + (targetEnd - startValue) * easeOut;
+      setLoadingProgress(current);
+      
+      if (progress >= 1) {
+        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      }
+    }, 20);
   };
 
-  const stopLoadingSequence = () => {
-    setLoadingProgress(100);
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-    setTimeout(() => {
-      setLoading(false);
+  // Cleanup intervals on unmount or when loading stops
+  useEffect(() => {
+    if (!loading) {
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);
       setLoadingProgress(0);
-    }, 500);
+    }
+  }, [loading]);
+
+  // Handle image analysis loading from child component
+  const setAnalysisLoading = (isLoading: boolean) => {
+    setLoading(isLoading);
+    if (isLoading) {
+      setLoadingProgress(0);
+      animateProgress(0, 90, 5000); // Slower animation for analysis
+      cycleMessages('analyzing');
+    } else {
+      setLoadingProgress(100);
+      setTimeout(() => setLoadingProgress(0), 500);
+    }
   };
 
   // Generate Recipes with Images
@@ -116,48 +136,58 @@ const App: React.FC = () => {
       return;
     }
     
-    startLoadingSequence();
-    setRecipes([]); // Clear previous
+    setLoading(true);
+    setRecipes([]); // Clear previous results immediately
     
     try {
+      // Phase 1: Text Generation (0% -> 50%)
+      setLoadingProgress(0);
+      cycleMessages('recipes');
+      animateProgress(0, 50, 3000); // Estimate 3s for text
+
       const ingredientNames = ingredients.map(i => i.name);
       
-      // Step 1: Generate Text Recipes
       const generatedRecipes = await generateRecipesFromIngredients(ingredientNames, language);
       
       if (generatedRecipes.length === 0) {
         notify('Could not generate recipes. Try different ingredients.', 'error');
-        stopLoadingSequence();
+        setLoading(false);
         return;
       }
 
-      // IMPORTANT: Do not set recipes yet. Wait for images to be ready.
-      
-      // Update loading for image phase
-      setLoadingMessage(t.generatingImages);
-      setLoadingProgress(85); // Update progress to reflect image generation phase
-      
-      // Step 2: Generate Images in Parallel
+      // Phase 2: Image Generation (50% -> 95%)
+      // Cancel previous animation and start new one
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      setLoadingProgress(50);
+      cycleMessages('images');
+      animateProgress(50, 95, 8000); // Estimate 8s for images
+
+      // Parallel image generation
       const recipesWithImages = await Promise.all(
         generatedRecipes.map(async (recipe) => {
           try {
             const imageUrl = await generateRecipeImage(recipe.name, recipe.description);
             return { ...recipe, imageUrl: imageUrl || undefined };
           } catch (e) {
+            console.error(`Failed to generate image for ${recipe.name}`, e);
             return recipe; // Return without image if fail
           }
         })
       );
 
-      // Step 3: Display everything at once
-      setRecipes(recipesWithImages);
-      notify('Recipes generated successfully!', 'success');
+      // Phase 3: Complete
+      setLoadingProgress(100);
+      // Small delay to let the user see the 100%
+      setTimeout(() => {
+        setRecipes(recipesWithImages);
+        setLoading(false);
+        notify('Recipes generated successfully!', 'success');
+      }, 500);
       
     } catch (error) {
       console.error(error);
       notify('Error generating recipes. Please try again.', 'error');
-    } finally {
-      stopLoadingSequence();
+      setLoading(false);
     }
   };
 
@@ -187,7 +217,7 @@ const App: React.FC = () => {
                 addIngredient={addIngredient}
                 removeIngredient={removeIngredient}
                 language={language}
-                setLoading={setLoading}
+                setLoading={setAnalysisLoading}
                 notify={notify}
              />
              
@@ -195,21 +225,23 @@ const App: React.FC = () => {
                 onClick={handleGenerateRecipes}
                 disabled={ingredients.length === 0 || loading}
                 className={`
-                    relative px-8 py-4 rounded-full font-bold text-lg shadow-lg transition-all transform hover:scale-105
+                    relative px-8 py-4 rounded-full font-bold text-lg shadow-lg transition-all transform hover:scale-105 overflow-hidden
                     ${ingredients.length === 0 ? 'bg-gray-300 cursor-not-allowed text-gray-500' : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-indigo-500/30'}
                 `}
              >
+                <span className="relative z-10 flex items-center">
                 {loading ? (
-                    <span className="flex items-center">
+                    <>
                         <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                         {t.generating}
-                    </span>
+                    </>
                 ) : (
                     t.generate
                 )}
+                </span>
              </button>
 
              {/* Engaging Loading Bar */}
@@ -224,7 +256,7 @@ const App: React.FC = () => {
                             style={{ width: `${loadingProgress}%` }}
                         ></div>
                     </div>
-                    <p className="mt-3 text-sm font-medium text-indigo-600 dark:text-indigo-400 animate-pulse">
+                    <p className="mt-4 text-lg font-medium text-indigo-600 dark:text-indigo-400 animate-pulse text-center min-h-[1.75rem]">
                         {loadingMessage}
                     </p>
                 </div>
@@ -232,7 +264,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Results Section */}
-          {recipes.length > 0 && (
+          {recipes.length > 0 && !loading && (
             <div className="animate-slide-up">
                 <h2 className="text-2xl font-serif font-bold mb-6 text-gray-800 dark:text-white border-l-4 border-indigo-500 pl-4">
                     {t.recipesTitle}

@@ -7,7 +7,8 @@ const getClient = () => {
   return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
-// Common safety settings to prevent blocking valid food content
+// Relaxed safety settings to prevent blocking valid food content
+// Food items like raw meat can sometimes trigger "HARM_CATEGORY_HARASSMENT" or "DANGEROUS" false positives
 const safetySettings = [
   {
     category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -25,6 +26,10 @@ const safetySettings = [
     category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
     threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
   },
+  {
+    category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+  }
 ];
 
 // Function to analyze image and extract ingredients
@@ -36,8 +41,8 @@ export const identifyIngredientsFromImage = async (
   const ai = getClient();
   
   const prompt = language === 'vi' 
-    ? "Liệt kê các nguyên liệu thực phẩm nhìn thấy trong hình ảnh này. Trả về danh sách dưới dạng JSON array đơn giản chứa tên các nguyên liệu bằng tiếng Việt."
-    : "Identify the food ingredients in this image. Return a simple JSON array of strings containing the ingredient names.";
+    ? "Liệt kê tối đa 15 nguyên liệu thực phẩm chính thấy trong hình. Trả về JSON array chứa tên nguyên liệu (tiếng Việt)."
+    : "List up to 15 main food ingredients seen in this image. Return a JSON array of strings.";
 
   try {
     const response = await ai.models.generateContent({
@@ -70,10 +75,16 @@ export const identifyIngredientsFromImage = async (
     let jsonString = response.text;
     if (!jsonString) return [];
 
-    // Sanitize potential markdown code blocks
+    // Aggressive Sanitization
     jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Sometimes models return markdown wrapper even with responseMimeType set
 
-    return JSON.parse(jsonString) as string[];
+    try {
+      return JSON.parse(jsonString) as string[];
+    } catch (e) {
+      console.error("JSON parse failed", jsonString);
+      return [];
+    }
 
   } catch (error) {
     console.error("Error identifying ingredients:", error);
@@ -174,7 +185,7 @@ export const generateRecipeImage = async (
   description: string
 ): Promise<string | null> => {
   const ai = getClient();
-  // Keep prompt in English for better image generation results, regardless of UI language
+  // Keep prompt in English for better image generation results
   const prompt = `Professional food photography of ${recipeName}, ${description}. High resolution, 4k, appetizing, cinematic lighting, detailed texture, on a beautiful plate, restaurant quality.`;
 
   try {
@@ -185,8 +196,6 @@ export const generateRecipeImage = async (
         numberOfImages: 1,
         outputMimeType: 'image/jpeg',
         aspectRatio: '4:3',
-        // @ts-ignore - Safety settings might vary for image models, but passing generalized config if supported or relying on defaults.
-        // Note: Imagen often has stricter built-in filters that can't always be overridden, hence the fallback below is crucial.
       },
     });
 
@@ -196,13 +205,9 @@ export const generateRecipeImage = async (
     }
     throw new Error("No image bytes returned from Imagen");
   } catch (error) {
-    console.warn("Imagen generation failed (likely restricted environment), falling back to AI Placeholder:", error);
-    
-    // Fallback: Use Pollinations.ai to generate a relevant food image via URL
-    // This ensures the user gets a relevant visual even if the Imagen API fails
+    // Fallback to a smart placeholder if Imagen fails or is restricted
     const safeName = encodeURIComponent(recipeName);
-    const safeDesc = encodeURIComponent(description.substring(0, 80)); // Truncate for URL safety
-    // We append a random seed to ensure unique caching behavior if needed, though mostly unique by name
-    return `https://image.pollinations.ai/prompt/delicious%20food%20photography%20of%20${safeName}%20${safeDesc}?width=800&height=600&nologo=true&model=flux`;
+    // Using a reliable fallback service that supports food keywords
+    return `https://image.pollinations.ai/prompt/delicious%20food%20photography%20of%20${safeName}?width=800&height=600&nologo=true&model=flux`;
   }
 };
